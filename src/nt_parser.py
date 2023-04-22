@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Dict, Optional
 
 import pandas as pd
 import requests
 from styleframe import StyleFrame, Styler
 
-from nt_filter import filter_price
-from nt_models import Pricing, Segment, AirBound, PriceFilter, CabinClass
-from nt_sorter import sort_segs
+from nt_models import Pricing, Segment, AirBound, CabinClass
 
 
 def convert_miles(miles: int) -> str:
@@ -63,10 +61,8 @@ def calculate_aa_mix_by_segment(target_cabin_class: CabinClass, duration_list: L
         x.sort(reverse=True)
         cabin_equal_or_lower_list = [v for v in x if target_cabin_class >= v]
         if len(cabin_equal_or_lower_list) == 0:
-            if len(x) ==1 and x[0] == CabinClass.F:
-                actual_cabin_list.append(CabinClass.F)  # domestic F class with international J class
-            else:
-                print('error')  # any other situation needs to debug
+            #  no results satisfied, use the first element of list.
+            actual_cabin_list.append(x[0])
         else:
             actual_cabin_list.append(cabin_equal_or_lower_list[0])
     if all([x == target_cabin_class for x in actual_cabin_list]):
@@ -74,9 +70,61 @@ def calculate_aa_mix_by_segment(target_cabin_class: CabinClass, duration_list: L
         mix_detail = 'N/A'
     else:
         is_mix = True
-        mix_detail = '+'.join(str(round(percentage_list[x] * 100, )) + '%' + actual_cabin_list[x]
-                             for x in range(len(duration_list)))
+        mix_detail = '+'.join(str(round(percentage_list[x] * 100, 0)) + '%' + actual_cabin_list[x]
+                              for x in range(len(duration_list)))
     return is_mix, mix_detail
+
+
+def calculate_dl_price_info(cabin_class_list: List[CabinClass], duration_list: List[int]):
+    if len(cabin_class_list) == 1:
+        cabin_class = cabin_class_list[0]
+        is_mix = False
+        mix_detail = 'N/A'
+    elif all([x == cabin_class_list[0] for x in cabin_class_list]):
+        cabin_class = cabin_class_list[0]
+        is_mix = False
+        mix_detail = 'N/A'
+    else:
+        all_duration = sum(duration_list)
+        longest_duration_index = duration_list.index(max(duration_list))
+        percentage_list = [round(100 * x / all_duration, 0) for x in duration_list]
+        is_mix = True
+        cabin_class = cabin_class_list[longest_duration_index]
+        mix_detail = '+'.join(str(percentage_list[x]) + '%' + cabin_class_list[x] for x in range(len(percentage_list)))
+    return cabin_class, is_mix, mix_detail
+
+
+def calculate_dl_cabin_list(cabins_json: List[Dict]) -> List[CabinClass]:
+    result = []
+    booking_code_to_cabin_dict = {
+        'X': 'Y',
+        'O': 'J',
+        'A': 'F',
+    }
+    for cb in cabins_json:
+        if 'deltaCabinCode' in cb.keys():
+            if cb['deltaCabinCode'] == 'C':
+                # International Delta One Cabin Code
+                result.append(CabinClass('F'))
+            elif cb['deltaCabinCode'] == 'F':
+                # International Delta One Cabin Code
+                result.append(CabinClass('J'))
+            else:
+                result.append(CabinClass(cb['deltaCabinCode']))
+        elif cb['bookingCode'] in booking_code_to_cabin_dict.keys():
+            result.append(CabinClass(booking_code_to_cabin_dict[cb['bookingCode']]))
+        elif 'ECONOMY' in cb['cabinName'].upper():
+            result.append(CabinClass('Y'))
+        elif 'BUSINESS' in cb['cabinName'].upper() \
+                or 'Upper Class'.upper() in cb['cabinName'].upper():
+            result.append(CabinClass('J'))
+        elif 'FIRST' in cb['cabinName'].upper():
+            result.append(CabinClass('F'))
+        elif 'PREMIUM' in cb['cabinName'].upper():
+            result.append(CabinClass('W'))
+        else:
+            raise ValueError('Cabin name error. Cabin detail:', cabins_json)
+    return result
 
 
 def convert_ac_response_to_models(response: requests.Response) -> List:
@@ -117,8 +165,9 @@ def convert_ac_response_to_models(response: requests.Response) -> List:
                         temp_pricing = Pricing(
                             cabin_class=cabin_class_dict[pr['fareFamilyCode']],
                             quota=min([x['quota'] for x in pr['availabilityDetails']]),
-                            miles=pr['airOffer']['milesConversion']['convertedMiles']['base'],
-                            excl_cash_in_cents=pr['airOffer']['milesConversion']['convertedMiles']['totalTaxes'],
+                            excl_miles=pr['airOffer']['milesConversion']['convertedMiles']['base'],
+                            excl_cash_in_base_unit=pr['airOffer']['milesConversion']['convertedMiles'][
+                                                       'totalTaxes'] / 100,
                             excl_currency='CAD',
                             is_mix=pr.get('isMixedCabin', False),
                             mix_detail=convert_mix(pr['availabilityDetails']) if pr.get('isMixedCabin',
@@ -154,21 +203,15 @@ def convert_ac_response_to_models(response: requests.Response) -> List:
         return results
 
 
-def filter_models(airbounds: List[AirBound], price_filter: PriceFilter) -> List[AirBound]:
-    result = []
-    for ab in airbounds:
-        ab.filter_price(price_filter)
-        if len(ab.price) > 0:
-            result.append(ab)
-    return result
-
-
 def convert_aa_response_to_models(response: requests.Response) -> List:
     if response.status_code != 200:
         return []
     else:
         response_json = response.json()
-        air_bounds_json = response_json.get('slices', []) if response_json is not None else {}
+        air_bounds_json = response_json.get('slices', []) if response_json is not None else []
+        aa_saver_max_miles = 3 * min(
+            int((response_json.get('utag', {}) if response_json is not None else {}).get('lowest_award_selling_miles',
+                                                                                         33333)), 33333)
     results = []
     cabin_class_dict = {
         'COACH': 'Y',
@@ -196,18 +239,21 @@ def convert_aa_response_to_models(response: requests.Response) -> List:
                 excl_connection_time_in_seconds=sum([x.get('connectionTimeInMinutes', 0) * 60 for x in sg['legs']]),
             )
             segs.append(temp_seg)
+        is_aa_flight = any(['AA' in sg.flight_code for sg in segs])
         prices_raw = [rr['cheapestPrice'] for rr in r['productPricing']]
         prices = []
         for pr in prices_raw:
+            # skip dynamic pricing of aa with an extremely high cost
+            if is_aa_flight and pr['perPassengerAwardPoints'] > aa_saver_max_miles:
+                # print("3 times more")
+                continue
             if pr['extendedFareCode'] != '':
                 temp_pricing = Pricing(
                     cabin_class=cabin_class_dict[pr['productType']],
                     quota=convert_aa_quota(pr['seatsRemaining']) if pr['extendedFareCode'] != '' else 0,
-                    miles=pr['perPassengerAwardPoints'],
-                    excl_cash_in_cents=pr['perPassengerTaxesAndFees']['amount'] * 100,
+                    excl_miles=pr['perPassengerAwardPoints'],
+                    excl_cash_in_base_unit=pr['perPassengerTaxesAndFees']['amount'],
                     excl_currency=pr['perPassengerTaxesAndFees']['currency'],
-                    # is_mix=False,
-                    # mix_detail='N/A'  # TODO add mix info
                 )
                 duration_list = [x.excl_duration_in_seconds for x in segs]
                 cabin_exist_list = [x.excl_cabin_exist for x in segs]
@@ -230,46 +276,79 @@ def convert_aa_response_to_models(response: requests.Response) -> List:
     return results
 
 
-def convert_nested_jsons_to_flatted_jsons(origin_results: list,
-                                          seg_sorter: dict = None,
-                                          price_filter: dict = {}) -> list:
-    # print(origin_results)
-    sorted_results = sort_segs(origin_results, seg_sorter)
-    # sorted_results = origin_results
+def convert_dl_response_to_models(response: requests.Response) -> List:
+    if response.status_code != 200:
+        return []
+    else:
+        response_json = response.json()
+        air_bounds_json = response_json.get('itineraries', []) if response_json is not None else []
+    results = []
+    price_base = 0
+    try:
+        for r in air_bounds_json:
+            r = dict(r)
+            segs_raw = r['slice']['flights']
+            segs = []
+            for sg in segs_raw:
+                temp_seg = Segment(
+                    flight_code=sg['marketAirline']['code'] + sg['flightNumber'],
+                    aircraft=sg['aircraftCode'],
+                    departure=sg['origin']['airportCode'],  # TODO limit the str to only 3 chars
+                    excl_departure_time=sg['departureDate'] + 'T' + sg['departureTime'],
+                    arrival=sg['destination']['airportCode'],
+                    excl_arrival_time=sg['arrivalDate'] + 'T' + sg['arrivalTime'],
+                    excl_duration_in_seconds=sg['duration']['totalTimeInMinutes'] * 60,
+                    excl_connection_time_in_seconds=sg.get('layover', {}).get('duration', {}).get('totalTimeInMinutes',
+                                                                                                  0) * 60,
+                )
+                segs.append(temp_seg)
+            prices_raw = r['fares']
+            prices = []
+            for pr in prices_raw:
+                if pr.get('seatsRemaining', False):
+                    if price_base == 0:
+                        price_base = min(int(pr['fare']['totalPriceForOnePassenger']['miles']), 35000)
+                        # print('price_base', price_base)
+                    cabin_list = calculate_dl_cabin_list(pr['cabins'])
+                    duration_list = [x['duration']['totalTimeInMinutes'] * 60 for x in segs_raw]
+                    cabin_class, is_mix, mix_detail = calculate_dl_price_info(cabin_list, duration_list)
+                    temp_pricing = Pricing(
+                        cabin_class=cabin_class,
+                        quota=pr['seatsRemaining'],
+                        excl_miles=pr['fare']['totalPriceForOnePassenger']['miles'],
+                        excl_cash_in_base_unit=pr['fare']['totalPriceForOnePassenger']['currency']['roundedAmount'],
+                        excl_currency=pr['fare']['totalPriceForOnePassenger']['currency']['code'],
+                        is_mix=is_mix,
+                        mix_detail=mix_detail
+                    )
+                    multiplier = {
+                        CabinClass.F: 4.5,
+                        CabinClass.J: 3.5,
+                        CabinClass.W: 2.5,
+                        CabinClass.Y: 2
+                    }
+                    if temp_pricing.excl_miles > price_base * multiplier[temp_pricing.cabin_class]:
+                        # filter the extremely high miles pricing
+                        # print('result dropped', temp_pricing)
+                        continue
+                    prices.append(temp_pricing)
+                else:
+                    continue
 
-    flatted_results = []
-    for result in sorted_results:
-        segs = result['segments']
-        segs_single = {
-            'flight_code': '-'.join([x['flight_code'] for x in segs]),
-            'aircraft': '-'.join([str(x['aircraft']) for x in segs]),
-            'from_to': ', '.join([x['departure'] + '-' + x['arrival'] for x in segs]),
-            'departure_time': convert_datetime(segs[0]['departure_time']),
-            'arrival_time': convert_datetime(segs[-1]['arrival_time']),
-        }
-        prices = result['price']
-        prices_filtered = filter_price(prices, price_filter)
-        #  如果所有票价均已被过滤，那么直接进入下一组循环。
-        if len(prices_filtered) == 0:
-            continue
-        for pf in prices_filtered:
-            prices_single = {
-                'cabin_class': pf['cabin_class'],
-                'quota': pf['quota'],
-                'miles': convert_miles(pf['miles']),
-                'cash': convert_cash(pf['cash'], currency=pf['currency']),
-                'is_mix': pf['is_mix'],
-                'mix_detail': pf['mix_detail'],
-            }
-            v1 = {
-                'stops': result['stops'],
-                'duration_in_all': convert_duration(result['duration_in_all']),
-            }
-            flatted_results.append({**v1, **segs_single, **prices_single})
-    return flatted_results
+            air_bound = AirBound(
+                engine='DL',
+                excl_duration_in_all_in_seconds=r['trip'][0]['totalTripTime']['totalTimeInMinutes'] * 60,
+                stops=r['trip'][0]['stopCount'],
+                segments=segs,
+                price=prices
+            )
+            results.append(air_bound)
+    except Exception as e:
+        print(e.args)
+    return results
 
 
-def results_to_excel(results, max_stops: int = 1):
+def results_to_excel(results, out_file_dir: Optional[str] = './output', out_file_name: Optional[str] = 'output.xlsx'):
     if len(results) == 0:
         print('No results at all, finished.')
     else:
@@ -285,7 +364,7 @@ def results_to_excel(results, max_stops: int = 1):
             width_dict[col] = max_len
         sf = StyleFrame(df, styler_obj=Styler())
         sf.set_column_width_dict(width_dict)
-        writer = sf.to_excel('output.xlsx', row_to_add_filters=0)
+        writer = sf.to_excel(f'{out_file_dir}/{out_file_name}', row_to_add_filters=0)
         writer.save()
         print('Success! Please check the output excel file.')
 
