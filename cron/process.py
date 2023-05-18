@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 import time
 
@@ -76,29 +77,37 @@ def send_notification(air_bound: AirBound, q: FlightQuery, ses_client):
 
 
 def find_air_bounds(aas: Aa_Searcher, acs: Ac_Searcher, dls: Dl_Searcher, q: FlightQuery):
+    def get_aa_air_bounds():
+        response = aas.search_for(q.origin, q.destination, q.date)
+        return convert_aa_response_to_models(response)
+
+    def get_ac_air_bounds():
+        response = acs.search_for(q.origin, q.destination, q.date)
+        return convert_ac_response_to_models(response)
+
+    def get_dl_air_bounds():
+        response = dls.search_for(q.origin, q.destination, q.date)
+        return convert_dl_response_to_models(response)
+
     print(f'Search for {q}')
 
-    air_bounds = []
+    air_bounds_futures = []
 
-    # Search from AA.
-    if q.max_aa_points and q.max_aa_points > 0:
-        response = aas.search_for(q.origin, q.destination, q.date)
-        aa_air_bounds = convert_aa_response_to_models(response)
-        air_bounds.extend(aa_air_bounds)
+    with ThreadPoolExecutor() as executor:
+        # Search from AA.
+        if q.max_aa_points and q.max_aa_points > 0:
+            air_bounds_futures.append(executor.submit(get_aa_air_bounds))
 
-    # Search from AC.
-    if q.max_ac_points and q.max_ac_points > 0:
-        response = acs.search_for(q.origin, q.destination, q.date)
-        ac_air_bounds = convert_ac_response_to_models(response)
-        air_bounds.extend(ac_air_bounds)
+        # Search from AC.
+        if q.max_ac_points and q.max_ac_points > 0:
+            air_bounds_futures.append(executor.submit(get_ac_air_bounds))
 
-    # Search from DL.
-    if q.max_dl_points and q.max_dl_points > 0:
-        response = dls.search_for(q.origin, q.destination, q.date)
-        dl_air_bounds = convert_dl_response_to_models(response)
-        air_bounds.extend(dl_air_bounds)
+        # Search from DL.
+        if q.max_dl_points and q.max_dl_points > 0:
+            air_bounds_futures.append(executor.submit(get_dl_air_bounds))
 
-    # Process each result and send notification if found a match.
-    for air_bound in air_bounds:
-        if match_query(air_bound, q):
-            yield air_bound
+    # Process each result and yield if found a match.
+    for air_bounds_future in air_bounds_futures:
+        for air_bound in air_bounds_future.result():
+            if match_query(air_bound, q):
+                yield air_bound
