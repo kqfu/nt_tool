@@ -20,27 +20,8 @@ class FlightQuery:
     email: str
     last_run: int  # unix epoch time
 
-    @staticmethod
-    def from_dynamo(item):
-        return FlightQuery(
-            item.get("id"),
-            item.get("origin"),
-            item.get("destination"),
-            item.get("date"),
-            item.get("num_passengers"),
-            item.get("cabin_class"),
-            item.get("max_stops"),
-            item.get("max_duration"),
-            item.get("max_aa_points"),
-            item.get("max_ac_points"),
-            item.get("max_dl_points"),
-            item.get("exact_airport"),
-            item.get("email"),
-            item.get("last_run")
-        )
 
-
-def fetch_all_queries_from_dynamo(flight_queries_table, limit=None, min_run_gap=None)\
+def fetch_all_queries_from_dynamo(flight_queries_table, limit=None, min_run_gap=None) \
         -> list[FlightQuery]:
     kwargs = {
         'FilterExpression': 'last_run < :last_run',
@@ -52,7 +33,7 @@ def fetch_all_queries_from_dynamo(flight_queries_table, limit=None, min_run_gap=
     queries = []
     resp = flight_queries_table.scan(**kwargs)
     for item in resp.get("Items"):
-        queries.append(FlightQuery.from_dynamo(item))
+        queries.append(FlightQuery(**item))
         if len(queries) >= limit:
             return queries
 
@@ -62,7 +43,7 @@ def fetch_all_queries_from_dynamo(flight_queries_table, limit=None, min_run_gap=
             **kwargs
         )
         for item in resp.get("Items"):
-            queries.append(FlightQuery.from_dynamo(item))
+            queries.append(FlightQuery(**item))
             if len(queries) >= limit:
                 return queries
 
