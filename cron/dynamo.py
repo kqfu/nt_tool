@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import time
 from typing import Optional
 
@@ -11,14 +11,20 @@ class FlightQuery:
     date: str  # YYYY-MM-DD
     num_passengers: int
     cabin_class: str  # one of ECO, PRE, BIZ, FIRST
-    max_stops: Optional[int]
-    max_duration: Optional[int]  # in hours
-    max_aa_points: Optional[int]
-    max_ac_points: Optional[int]
-    max_dl_points: Optional[int]
-    exact_airport: Optional[bool]
     email: str
     last_run: int  # unix epoch time
+
+    max_stops: Optional[int] = None
+    max_duration: Optional[int] = None  # in hours
+    max_aa_points: Optional[int] = None
+    max_ac_points: Optional[int] = None
+    max_dl_points: Optional[int] = None
+    exact_airport: Optional[bool] = None
+    exclude_airports: Optional[list[str]] = None
+
+
+def add_query_in_dynamo(flight_queries_table, query: FlightQuery):
+    flight_queries_table.put_item(Item=asdict(query))
 
 
 def fetch_all_queries_from_dynamo(flight_queries_table, limit=None, min_run_gap=None) \
