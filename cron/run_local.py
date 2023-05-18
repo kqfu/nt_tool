@@ -44,7 +44,7 @@ for origin in {"SFO"}:
             # Add query to DynamoDB
             # print(f"Adding {origin}-{dest} on {cur_date}")
             # if not dry:
-            #     flight_queries_table.put_item(asdict(query))
+            #     flight_queries_table.put_item(Item=asdict(query))
 
             # Update date for the next run. DO NOT COMMENT THIS LINE.
             cur_date += timedelta(days=1)
