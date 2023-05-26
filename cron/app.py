@@ -26,8 +26,9 @@ def run_one_query(q):
 def handler(event, context):
     limit = event.get("limit", 100)
     min_run_gap = event.get("min_run_gap", 900)
+    max_workers = event.get("max_workers", 5)
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers) as executor:
         futures = []
         for q in fetch_all_queries_from_dynamo(flight_queries_table, limit, min_run_gap):
             futures.append(executor.submit(run_one_query, q))
