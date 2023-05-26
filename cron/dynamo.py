@@ -22,6 +22,9 @@ class FlightQuery:
     exact_airport: Optional[bool] = None
     exclude_airports: Optional[list[str]] = None
 
+    def short_string(self):
+        return f"{self.origin}-{self.destination} {self.date}"
+
 
 def add_query_in_dynamo(flight_queries_table, query: FlightQuery):
     flight_queries_table.put_item(Item=asdict(query))

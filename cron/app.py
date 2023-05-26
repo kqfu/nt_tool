@@ -1,5 +1,6 @@
 import boto3
 
+from concurrent.futures import ThreadPoolExecutor
 from dynamo import fetch_all_queries_from_dynamo
 from process import find_air_bounds, send_notification, update_last_run_time
 from aa_searcher import Aa_Searcher
@@ -15,15 +16,24 @@ acs = Ac_Searcher()
 dls = Dl_Searcher()
 
 
+def run_one_query(q):
+    air_bounds = find_air_bounds(aas, acs, dls, q)
+    update_last_run_time(flight_queries_table, q)
+    for air_bound in air_bounds:
+        send_notification(air_bound, q, ses_client)
+
+
 def handler(event, context):
     # EventBridge puts payload JSON in `detail` field.
     d = event.get('detail', {})
     limit = d.get("limit", 100)
     min_run_gap = d.get("min_run_gap", 3600)
 
-    for q in fetch_all_queries_from_dynamo(flight_queries_table, limit, min_run_gap):
-        for air_bound in find_air_bounds(aas, acs, dls, q):
-            send_notification(air_bound, q, ses_client)
-        update_last_run_time(flight_queries_table, q)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = []
+        for q in fetch_all_queries_from_dynamo(flight_queries_table, limit, min_run_gap):
+            futures.append(executor.submit(run_one_query, q))
+        for future in futures:
+            future.result()
 
     return "success"
