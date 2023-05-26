@@ -24,10 +24,8 @@ def run_one_query(q):
 
 
 def handler(event, context):
-    # EventBridge puts payload JSON in `detail` field.
-    d = event.get('detail', {})
-    limit = d.get("limit", 100)
-    min_run_gap = d.get("min_run_gap", 3600)
+    limit = event.get("limit", 100)
+    min_run_gap = event.get("min_run_gap", 900)
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = []
