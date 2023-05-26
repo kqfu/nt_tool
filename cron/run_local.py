@@ -10,13 +10,10 @@ from dynamo import FlightQuery, add_query_in_dynamo
 EMAIL = "your_email@gmail.com"
 
 # Test run Lambda function.
-handler(
-    {
-        "detail": {
-            "limit": 100,
-            "min_run_gap": 900,
-        }
-    }, None)
+handler({
+    "limit": 100,
+    "min_run_gap": 900
+}, None)
 
 # Run search locally. You can also use this block to add routes in DynamoDB.
 dry = False
