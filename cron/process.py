@@ -12,7 +12,8 @@ from nt_parser import convert_aa_response_to_models, convert_ac_response_to_mode
     convert_dl_response_to_models
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("")
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def match_query(air_bound: AirBound, q: FlightQuery):
