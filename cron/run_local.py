@@ -7,20 +7,20 @@ from dynamo import FlightQuery, add_query_in_dynamo
 
 # This is the email that you want to receive notification.
 # You need to verify it in SES first before using it.
-EMAIL = "your_email@gmail.com"
+EMAILS = ["your_email@gmail.com"]
 
 # Test run Lambda function.
-handler({
-    "limit": 100,
-    "min_run_gap": 900
-}, None)
+# handler({
+#     "limit": 10,
+#     "min_run_gap": 900
+# }, None)
 
 # Run search locally. You can also use this block to add routes in DynamoDB.
 dry = False
-start_date = date(2024, 2, 15)
-end_date = date(2024, 2, 29)
-for origin in {"HGH"}:
-    for dest in {"SFO"}:
+start_date = date(2023, 10, 4)
+end_date = date(2023, 10, 4)
+for origin in {"HND"}:
+    for dest in {"PVG"}:
         cur_date = start_date
         while cur_date <= end_date:
             query = FlightQuery(
@@ -35,9 +35,10 @@ for origin in {"HGH"}:
                 max_ac_points=50000,
                 max_aa_points=50000,
                 max_dl_points=50000,
-                exact_airport=False,
-                exclude_airports=["TPE"],
-                email=EMAIL,
+                exact_airport=True,
+                exclude_airports=None,
+                depart_window=[17, 24],
+                email=EMAILS,
                 last_run=0,
             )
 

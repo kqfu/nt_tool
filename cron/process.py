@@ -35,6 +35,9 @@ def match_query(air_bound: AirBound, q: FlightQuery):
             for airport in q.exclude_airports:
                 if airport in air_bound.from_to:
                     return False
+        if q.depart_window:
+            if not (q.depart_window[0] <= air_bound.excl_departure_time.hour <= q.depart_window[1]):
+                return False
 
         if air_bound.engine.upper() == "AA" and price.excl_miles <= q.max_aa_points:
             return True
@@ -68,14 +71,13 @@ def send_notification(air_bound: AirBound, q: FlightQuery, ses_client):
     if not resp.get("Identities"):
         raise Exception("Cannot send notification because no ses verified identity exists")
     source_email = resp["Identities"][0]
+    target_emails = q.email if isinstance(q.email, list) else [q.email]
 
     logger.info("Sending email for %s", air_bound.to_cust_dict())
     ses_client.send_email(
         Source=source_email,
         Destination={
-            'ToAddresses': [
-                q.email,
-            ],
+            'ToAddresses': target_emails,
         },
         Message={
             'Subject': {
