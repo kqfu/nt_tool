@@ -36,14 +36,14 @@ class CabinClass(str, Enum):
     PRE = 'W'
     Premium = 'W'
     Premium_Economy = 'W'
+    PremiumEcon = 'W'
     J = 'J'
     BIZ = 'J'
     Business = 'J'
     F = 'F'
     First = 'F'
     FIRST = 'F'
-
-
+    FirstClass = 'F'
 
     @staticmethod
     def from_string(cabin_str):
