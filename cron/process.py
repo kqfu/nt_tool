@@ -4,11 +4,11 @@ import logging
 import time
 
 from aa_searcher import Aa_Searcher
-from ac_searcher import Ac_Searcher
+from ac_searcher2 import Ac_Searcher2
 from dl_searcher import Dl_Searcher
 from dynamo import FlightQuery
 from nt_models import CabinClass, AirBound
-from nt_parser import convert_aa_response_to_models, convert_ac_response_to_models, \
+from nt_parser import convert_aa_response_to_models, convert_ac_response_to_models2, \
     convert_dl_response_to_models
 
 logging.basicConfig(level=logging.INFO)
@@ -92,14 +92,14 @@ def send_notification(air_bound: AirBound, q: FlightQuery, ses_client):
     )
 
 
-def find_air_bounds(aas: Aa_Searcher, acs: Ac_Searcher, dls: Dl_Searcher, q: FlightQuery):
+def find_air_bounds(aas: Aa_Searcher, acs: Ac_Searcher2, dls: Dl_Searcher, q: FlightQuery):
     def get_aa_air_bounds():
         response = aas.search_for(q.origin, q.destination, q.date)
         return convert_aa_response_to_models(response)
 
     def get_ac_air_bounds():
         response = acs.search_for(q.origin, q.destination, q.date)
-        return convert_ac_response_to_models(response)
+        return convert_ac_response_to_models2(response)
 
     def get_dl_air_bounds():
         response = dls.search_for(q.origin, q.destination, q.date)
