@@ -12,7 +12,8 @@ EMAILS = ["your_email@gmail.com"]
 # Test run Lambda function.
 # handler({
 #     "limit": 10,
-#     "min_run_gap": 900
+#     "min_run_gap": 3600,
+#     "max_workers": 1
 # }, None)
 
 # Run search locally. You can also use this block to add routes in DynamoDB.
