@@ -95,14 +95,17 @@ def send_notification(air_bound: AirBound, q: FlightQuery, ses_client):
 def find_air_bounds(aas: Aa_Searcher, acs: Ac_Searcher2, dls: Dl_Searcher, q: FlightQuery):
     def get_aa_air_bounds():
         response = aas.search_for(q.origin, q.destination, q.date)
+        logger.info("Finished AA")
         return convert_aa_response_to_models(response)
 
     def get_ac_air_bounds():
         response = acs.search_for(q.origin, q.destination, q.date)
+        logger.info("Finished AC")
         return convert_ac_response_to_models2(response)
 
     def get_dl_air_bounds():
         response = dls.search_for(q.origin, q.destination, q.date)
+        logger.info("Finished DL")
         return convert_dl_response_to_models(response)
 
     logger.info('Start searching for %s', q.short_string())

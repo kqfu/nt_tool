@@ -18,10 +18,10 @@ EMAILS = ["your_email@gmail.com"]
 
 # Run search locally. You can also use this block to add routes in DynamoDB.
 dry = False
-start_date = date(2023, 10, 4)
+start_date = date(2023, 10, 1)
 end_date = date(2023, 10, 4)
-for origin in {"HND"}:
-    for dest in {"PVG"}:
+for origin in {"SFO"}:
+    for dest in {"LAX"}:
         cur_date = start_date
         while cur_date <= end_date:
             query = FlightQuery(
@@ -31,14 +31,14 @@ for origin in {"HND"}:
                 date=cur_date.isoformat(),
                 num_passengers=1,
                 cabin_class="ECO",
-                max_stops=1,
+                max_stops=0,
                 max_duration=20,
-                max_ac_points=50000,
-                max_aa_points=50000,
-                max_dl_points=50000,
-                exact_airport=True,
+                max_ac_points=100000,
+                max_aa_points=100000,
+                max_dl_points=100000,
+                exact_airport=False,
                 exclude_airports=None,
-                depart_window=[17, 24],
+                depart_window=None,
                 email=EMAILS,
                 last_run=0,
             )
