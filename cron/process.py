@@ -6,7 +6,7 @@ import time
 from aa_searcher import Aa_Searcher
 from ac_searcher2 import Ac_Searcher2
 from dl_searcher import Dl_Searcher
-from dynamo import FlightQuery
+from flight_query import FlightQuery
 from nt_models import CabinClass, AirBound
 from nt_parser import convert_aa_response_to_models, convert_ac_response_to_models2, \
     convert_dl_response_to_models
@@ -66,44 +66,24 @@ def update_last_run_time(flight_queries_table, q: FlightQuery):
         logger.warning("Failed to update last run time for %s. Error: %s", q.short_string(), e)
 
 
-def send_notification(air_bound: AirBound, q: FlightQuery, ses_client):
-    resp = ses_client.list_identities(IdentityType='EmailAddress')
-    if not resp.get("Identities"):
-        raise Exception("Cannot send notification because no ses verified identity exists")
-    source_email = resp["Identities"][0]
-    target_emails = q.email if isinstance(q.email, list) else [q.email]
-
-    logger.info("Sending email for %s", air_bound.to_cust_dict())
-    ses_client.send_email(
-        Source=source_email,
-        Destination={
-            'ToAddresses': target_emails,
-        },
-        Message={
-            'Subject': {
-                'Data': f'Reward Ticket Found for {q.origin}-{q.destination} on {q.date}'
-            },
-            'Body': {
-                'Text': {
-                    'Data': "\n".join([str(x) for x in air_bound.to_flatted_list()])
-                }
-            }
-        }
-    )
-
-
 def find_air_bounds(aas: Aa_Searcher, acs: Ac_Searcher2, dls: Dl_Searcher, q: FlightQuery):
     def get_aa_air_bounds():
         response = aas.search_for(q.origin, q.destination, q.date)
-        return convert_aa_response_to_models(response)
+        air_bounds = convert_aa_response_to_models(response)
+        logger.info("Engine AA returned %d for %s", len(air_bounds), q.short_string())
+        return air_bounds
 
     def get_ac_air_bounds():
         response = acs.search_for(q.origin, q.destination, q.date)
-        return convert_ac_response_to_models2(response)
+        air_bounds = convert_ac_response_to_models2(response)
+        logger.info("Engine AC returned %d for %s", len(air_bounds), q.short_string())
+        return air_bounds
 
     def get_dl_air_bounds():
         response = dls.search_for(q.origin, q.destination, q.date)
-        return convert_dl_response_to_models(response)
+        air_bounds = convert_dl_response_to_models(response)
+        logger.info("Engine DL returned %d for %s", len(air_bounds), q.short_string())
+        return air_bounds
 
     logger.info('Start searching for %s', q.short_string())
 
@@ -124,8 +104,8 @@ def find_air_bounds(aas: Aa_Searcher, acs: Ac_Searcher2, dls: Dl_Searcher, q: Fl
 
     # Process each result and yield if found a match.
     for engine, air_bounds_future in air_bounds_futures.items():
-        logger.info("Found %d results with engine %s for %s", len(air_bounds_future.result()),
-                    engine, q.short_string())
         for air_bound in air_bounds_future.result():
             if match_query(air_bound, q):
+                logger.info("Found a match with engine %s:\n%s",
+                            engine, "\n".join([str(x) for x in air_bound.to_flatted_list()]))
                 yield air_bound
