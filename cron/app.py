@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dynamo import fetch_all_queries_from_dynamo
 from process import find_air_bounds, send_notification, update_last_run_time
 from aa_searcher import Aa_Searcher
-from ac_searcher import Ac_Searcher
+from ac_searcher2 import Ac_Searcher2
 from dl_searcher import Dl_Searcher
 
 dynamodb = boto3.resource('dynamodb')
@@ -12,7 +12,7 @@ flight_queries_table = dynamodb.Table('flight_queries')
 ses_client = boto3.client('ses')
 
 aas = Aa_Searcher()
-acs = Ac_Searcher()
+acs = Ac_Searcher2()
 dls = Dl_Searcher()
 
 
@@ -24,9 +24,9 @@ def run_one_query(q):
 
 
 def handler(event, context):
-    limit = event.get("limit", 100)
-    min_run_gap = event.get("min_run_gap", 900)
-    max_workers = event.get("max_workers", 5)
+    limit = event.get("limit", 20)
+    min_run_gap = event.get("min_run_gap", 3600)
+    max_workers = event.get("max_workers", 2)
 
     with ThreadPoolExecutor(max_workers) as executor:
         futures = []
