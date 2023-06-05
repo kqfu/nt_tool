@@ -50,22 +50,6 @@ def match_query(air_bound: AirBound, q: FlightQuery):
     return False
 
 
-def update_last_run_time(flight_queries_table, q: FlightQuery):
-    try:
-        flight_queries_table.update_item(
-            Key={
-                "id": q.id
-            },
-            UpdateExpression="SET last_run = :last_run",
-            ConditionExpression="attribute_exists(id)",
-            ExpressionAttributeValues={
-                ":last_run": int(time.time())
-            },
-        )
-    except Exception as e:
-        logger.warning("Failed to update last run time for %s. Error: %s", q.short_string(), e)
-
-
 def find_air_bounds(aas: Aa_Searcher, acs: Ac_Searcher2, dls: Dl_Searcher, q: FlightQuery):
     def get_aa_air_bounds():
         response = aas.search_for(q.origin, q.destination, q.date)

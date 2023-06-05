@@ -13,7 +13,7 @@ from flight_query import FlightQuery
 EMAILS = ["your_email@gmail.com"]
 
 # Test run Lambda function.
-# from app import handler, flight_queries_table, add_query_in_dynamo
+# from app import handler, add_query_in_dynamo
 # handler({
 #     "limit": 10,
 #     "min_run_gap": 3600,
@@ -57,7 +57,7 @@ for origin in {"SFO"}:
             # Add query to DynamoDB
             # print(f"Adding {origin}-{dest} on {cur_date}")
             # if not dry:
-            #     add_query_in_dynamo(flight_queries_table, query)
+            #     add_query_in_dynamo(query)
 
             # Update date for the next run. DO NOT COMMENT THIS LINE.
             cur_date += timedelta(days=1)
