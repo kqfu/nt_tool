@@ -4,7 +4,7 @@ import logging
 import time
 
 from flight_query import FlightQuery
-from process import find_air_bounds, update_last_run_time
+from process import find_air_bounds
 from aa_searcher import Aa_Searcher
 from ac_searcher2 import Ac_Searcher2
 from dl_searcher import Dl_Searcher
@@ -24,16 +24,32 @@ dls = Dl_Searcher()
 
 def run_one_query(q):
     air_bounds = find_air_bounds(aas, acs, dls, q)
-    update_last_run_time(flight_queries_table, q)
+    update_last_run_time(q)
     for air_bound in air_bounds:
         send_notification(air_bound, q)
 
 
-def add_query_in_dynamo(flight_queries_table, query: FlightQuery):
+def add_query_in_dynamo(query: FlightQuery):
     flight_queries_table.put_item(Item=query.to_dict())
 
 
-def fetch_all_queries_from_dynamo(flight_queries_table, limit=None, min_run_gap=None) \
+def update_last_run_time(q: FlightQuery):
+    try:
+        flight_queries_table.update_item(
+            Key={
+                "id": q.id
+            },
+            UpdateExpression="SET last_run = :last_run",
+            ConditionExpression="attribute_exists(id)",
+            ExpressionAttributeValues={
+                ":last_run": int(time.time())
+            },
+        )
+    except Exception as e:
+        logger.warning("Failed to update last run time for %s. Error: %s", q.short_string(), e)
+
+
+def fetch_all_queries_from_dynamo(limit=None, min_run_gap=None) \
         -> list[FlightQuery]:
     kwargs = {
         'FilterExpression': 'last_run < :last_run',
@@ -95,7 +111,7 @@ def handler(event, context):
 
     with ThreadPoolExecutor(max_workers) as executor:
         futures = []
-        for q in fetch_all_queries_from_dynamo(flight_queries_table, limit, min_run_gap):
+        for q in fetch_all_queries_from_dynamo(limit, min_run_gap):
             futures.append(executor.submit(run_one_query, q))
         for future in futures:
             future.result()
