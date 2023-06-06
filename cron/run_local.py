@@ -20,13 +20,22 @@ EMAILS = ["your_email@gmail.com"]
 #     "max_workers": 1
 # }, None)
 
+# Test run Cloud Functions.
+from main import run, add_query_in_datastore
+run({
+    "limit": 10,
+    "min_run_gap": 3600,
+    "max_workers": 1
+})
+
+
 # Run search locally. You can also use this block to add routes in DynamoDB.
 aas = Aa_Searcher()
 acs = Ac_Searcher2()
 dls = Dl_Searcher()
 
 dry = False
-start_date = date(2023, 10, 4)
+start_date = date(2023, 10, 1)
 end_date = date(2023, 10, 4)
 for origin in {"SFO"}:
     for dest in {"LAX"}:
@@ -52,12 +61,17 @@ for origin in {"SFO"}:
             )
 
             # Print results directly
-            print(list(find_air_bounds(aas, acs, dls, query)))
+            # print(list(find_air_bounds(aas, acs, dls, query)))
 
             # Add query to DynamoDB
             # print(f"Adding {origin}-{dest} on {cur_date}")
             # if not dry:
             #     add_query_in_dynamo(query)
+
+            # Add query to Datastore
+            print(f"Adding {origin}-{dest} on {cur_date}")
+            if not dry:
+                add_query_in_datastore(query)
 
             # Update date for the next run. DO NOT COMMENT THIS LINE.
             cur_date += timedelta(days=1)
