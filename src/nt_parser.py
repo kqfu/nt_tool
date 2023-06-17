@@ -239,7 +239,7 @@ def convert_ac_response_to_models2(response: requests.Response) -> List:
         for r in air_bounds_json:
             r = dict(r)
             is_ac_flight = 'AC' in r['carrierType']
-            print(r['carrierType'], is_ac_flight)
+            # print(r['carrierType'], is_ac_flight)
             prices_raw = r['fare']['cabins']
             segs_raw = [rr for rr in r['flightSegments']]
             prices = []
@@ -264,7 +264,7 @@ def convert_ac_response_to_models2(response: requests.Response) -> List:
                 #         and pr['bookingClass']['bookingClassCode'] not in saver_class_list:
                 #     continue
                 # else:
-                print(pr)
+                # print(pr)
 
                 if pr["shortCabin"] == "Premium Econ.":
                     cabin_class = "W"
@@ -291,7 +291,7 @@ def convert_ac_response_to_models2(response: requests.Response) -> List:
                 segments=segs,
                 price=prices
             )
-            print(air_bound)
+            # print(air_bound)
             results.append(air_bound)
         return results
 
