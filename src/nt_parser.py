@@ -228,17 +228,15 @@ def convert_ac_response_to_models2(response: requests.Response) -> List:
         return list()
     else:
         response_json = response.json()
-        try:
-            temp1 = response_json.get('data', {}).get('getFareRedemption', {}).get('bound',[]) if response_json is not None else {}
-        except AttributeError as e:
-            print("Got exception", response_json, e)
+        temp1 = response_json.get('data', {}).get('getFareRedemption', {}).get('bound',
+                                                                               []) if response_json is not None else {}
         air_bounds_json = temp1[0]['boundSolution'] if len(temp1) > 0 else []
         results = []
         saver_class_list = ['X', 'I', 'A']
         for r in air_bounds_json:
             r = dict(r)
             is_ac_flight = 'AC' in r['carrierType']
-            # print(r['carrierType'], is_ac_flight)
+            print(r['carrierType'], is_ac_flight)
             prices_raw = r['fare']['cabins']
             segs_raw = [rr for rr in r['flightSegments']]
             prices = []
@@ -263,10 +261,17 @@ def convert_ac_response_to_models2(response: requests.Response) -> List:
                 #         and pr['bookingClass']['bookingClassCode'] not in saver_class_list:
                 #     continue
                 # else:
-                # print(pr)
-                normalized_cabin = pr['shortCabin'].replace(" ", "").replace(".", "")
+                print(pr)
+
+                if pr["shortCabin"] == "Premium Econ.":
+                    cabin_class = "W"
+                elif pr["shortCabin"] == "First Class":
+                    cabin_class = "F"
+                else:
+                    cabin_class = pr["shortCabin"]
+
                 temp_pricing = Pricing(
-                    cabin_class=CabinClass[normalized_cabin],
+                    cabin_class=CabinClass[cabin_class],
                     quota=9,  # no info from raw
                     excl_miles=pr['fareAvailable'][0]['redemptionBooking']['pointsPortion']['baseFarePoints'],
                     excl_cash_in_base_unit=pr['fareAvailable'][0]['redemptionBooking']['cashPortion']['taxesTotal'],
@@ -283,7 +288,7 @@ def convert_ac_response_to_models2(response: requests.Response) -> List:
                 segments=segs,
                 price=prices
             )
-            # print(air_bound)
+            print(air_bound)
             results.append(air_bound)
         return results
 
