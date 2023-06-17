@@ -229,10 +229,11 @@ def convert_ac_response_to_models2(response: requests.Response) -> List:
     else:
         response_json = response.json()
         try:
-            temp1 = response_json.get('data', {}).get('getFareRedemption', {}).get('bound',[]) if response_json is not None else {}
-        except AttributeError as e:
+            bound = response_json['data']['getFareRedemption']['bound']
+        except Exception as e:
             print("Got exception", response_json, e)
-        air_bounds_json = temp1[0]['boundSolution'] if len(temp1) > 0 else []
+            return list()
+        air_bounds_json = bound[0]['boundSolution'] if len(bound) > 0 else []
         results = []
         saver_class_list = ['X', 'I', 'A']
         for r in air_bounds_json:
