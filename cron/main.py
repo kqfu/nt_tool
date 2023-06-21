@@ -29,12 +29,8 @@ access_secret_response = sm_client.access_secret_version(
 sendgrid_api_key = access_secret_response.payload.data.decode()
 sg = sendgrid.SendGridAPIClient(sendgrid_api_key)
 
-aas = Aa_Searcher()
-acs = Ac_Searcher2()
-dls = Dl_Searcher()
 
-
-def run_one_query(q):
+def run_one_query(aas, acs, dls, q):
     air_bounds = find_air_bounds(aas, acs, dls, q)
     update_last_run_time(q)
     for air_bound in air_bounds:
@@ -87,10 +83,14 @@ def run(event):
     min_run_gap = event.get("min_run_gap", 3600)
     max_workers = event.get("max_workers", 2)
 
+    aas = Aa_Searcher()
+    acs = Ac_Searcher2()
+    dls = Dl_Searcher()
+
     with ThreadPoolExecutor(max_workers) as executor:
         futures = []
         for q in fetch_all_queries_from_datastore(limit, min_run_gap):
-            futures.append(executor.submit(run_one_query, q))
+            futures.append(executor.submit(run_one_query, aas, acs, dls, q))
         for future in futures:
             future.result()
 
